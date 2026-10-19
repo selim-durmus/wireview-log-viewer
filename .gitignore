@@ -1,0 +1,16 @@
+# build output
+bin/
+obj/
+dist/
+*.user
+.vs/
+
+# personal data: device logs and PC power history
+samples/
+*.wvl
+power-events-*.csv
+monitoring-*.csv
+log-*.csv
+
+# local tooling
+.claude/

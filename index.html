@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WireView Log Viewer</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --surface-2: #222221;
+    --ink: #f0efec;
+    --ink-2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --accent: #3987e5;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300;
+    --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
+    --off: rgba(255, 255, 255, 0.035);
+    --radius: 10px;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--page); color: var(--ink); }
+  body { font-size: 14px; line-height: 1.45; }
+  button, input, select { font: inherit; color: inherit; }
+  button {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px;
+    padding: 6px 12px; cursor: pointer;
+  }
+  button:hover { border-color: rgba(255,255,255,0.25); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.link { background: none; border: none; color: var(--accent); padding: 0; }
+  input[type=number], input[type=datetime-local], select {
+    background: var(--page); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px;
+  }
+  input[type=number] { width: 72px; }
+  .muted { color: var(--muted); }
+  .ink2 { color: var(--ink-2); }
+  .num { font-variant-numeric: tabular-nums; }
+
+  header.top {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 12px 16px; border-bottom: 1px solid var(--border); position: sticky; top: 0;
+    background: rgba(13,13,13,0.92); backdrop-filter: blur(6px); z-index: 20;
+  }
+  header.top h1 { font-size: 16px; margin: 0; font-weight: 650; }
+  header.top .file { color: var(--ink-2); font-size: 13px; flex: 1 1 160px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  header.top .spacer { display: none; }
+  main { padding: 16px; max-width: 1800px; margin: 0 auto; }
+
+  .drop {
+    border: 1.5px dashed rgba(255,255,255,0.18); border-radius: 14px; padding: 48px 24px;
+    text-align: center; background: var(--surface); margin-top: 24px;
+  }
+  .drop.over { border-color: var(--accent); background: #1d2430; }
+  .drop h2 { margin: 0 0 8px; font-size: 20px; }
+  .drop ol { text-align: left; display: inline-block; color: var(--ink-2); margin: 16px 0; }
+  .error { color: var(--critical); margin-top: 12px; white-space: pre-wrap; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+  .card > h3, .card-head h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--ink-2); letter-spacing: .01em; }
+  .card-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px 0; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .tile { padding: 12px 14px; }
+  .tile .label { font-size: 12px; color: var(--muted); }
+  .tile .value { font-size: 22px; font-weight: 600; margin-top: 2px; }
+  .tile .sub { font-size: 12px; color: var(--ink-2); }
+
+  .sessions { padding: 10px 14px 12px; margin-bottom: 14px; }
+  .strip { display: flex; gap: 3px; height: 34px; margin-top: 8px; }
+  .strip .seg {
+    flex-basis: 0; min-width: 18px; border-radius: 5px; background: var(--surface-2); border: 1px solid var(--border);
+    position: relative; overflow: hidden; cursor: pointer; padding: 0 6px; font-size: 11px; display: flex; align-items: center;
+    color: var(--ink-2); white-space: nowrap;
+  }
+  .strip .seg:hover { border-color: rgba(255,255,255,0.35); }
+  .strip .seg .fill { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--accent); opacity: .8; }
+  .strip .seg .ev { position: absolute; top: 3px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--warning); }
+  details.sess-table { margin-top: 10px; }
+  details.sess-table summary { cursor: pointer; color: var(--ink-2); font-size: 13px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--grid); font-size: 13px; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  td.r, th.r { text-align: right; }
+
+  .nav { padding: 8px 14px 10px; margin-bottom: 10px; }
+  .nav-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .nav-row .range { font-size: 13px; color: var(--ink-2); }
+  .quick { display: inline-flex; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+  .quick button { border: none; border-radius: 0; background: var(--surface-2); padding: 6px 11px; }
+  .quick button + button { border-left: 1px solid var(--border); }
+  .quick button.on { background: var(--accent); color: #fff; }
+  .nav canvas { width: 100%; height: 56px; display: block; margin-top: 6px; cursor: crosshair; }
+
+  .charts { display: flex; flex-direction: column; gap: 10px; }
+  .chart { position: relative; }
+  .chart canvas { width: 100%; display: block; cursor: crosshair; touch-action: none; }
+  .legend { display: flex; gap: 4px 12px; flex-wrap: wrap; font-size: 12px; }
+  .legend label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; color: var(--ink-2); user-select: none; }
+  .legend label.off { opacity: .4; }
+  .legend input { display: none; }
+  .key { width: 14px; height: 2px; border-radius: 1px; display: inline-block; }
+  .chart-tools { margin-left: auto; display: flex; gap: 8px; align-items: center; font-size: 12px; }
+
+  .tooltip {
+    position: fixed; pointer-events: none; z-index: 50; background: rgba(26,26,25,0.97);
+    border: 1px solid rgba(255,255,255,0.16); border-radius: 8px; padding: 8px 10px; font-size: 12px;
+    min-width: 150px; display: none; box-shadow: 0 6px 24px rgba(0,0,0,.5);
+  }
+  .tooltip .t { color: var(--ink-2); margin-bottom: 4px; }
+  .tooltip .row { display: flex; align-items: center; gap: 8px; }
+  .tooltip .row b { font-weight: 600; min-width: 46px; text-align: right; font-variant-numeric: tabular-nums; }
+  .tooltip .row span.n { color: var(--muted); }
+
+  .bottom { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 10px; margin-top: 10px; }
+  @media (max-width: 1100px) { .bottom { grid-template-columns: 1fr; } }
+  .panel { padding: 12px 14px; }
+  .rules { display: flex; gap: 8px 16px; flex-wrap: wrap; align-items: center; margin: 10px 0; font-size: 13px; color: var(--ink-2); }
+  .rules label { display: inline-flex; align-items: center; gap: 6px; }
+  .events-wrap { max-height: 360px; overflow: auto; border-top: 1px solid var(--grid); }
+  .events-wrap tr { cursor: pointer; }
+  .events-wrap tr:hover td { background: rgba(255,255,255,0.03); }
+  .events-wrap tr.sel td { background: rgba(57,135,229,0.12); }
+  .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; white-space: nowrap; }
+  .chip i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .detail { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--grid); }
+  .detail table td.hi { color: var(--serious); font-weight: 600; }
+  .detail table td.lo { color: var(--accent); font-weight: 600; }
+  .note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .bar { position: relative; height: 10px; background: var(--surface-2); border-radius: 3px; min-width: 120px; }
+  .bar .b { position: absolute; top: 0; bottom: 0; background: #6b6a65; border-radius: 3px; }
+  .bar .ideal { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink-2); }
+  .powerlog { margin-top: 10px; font-size: 13px; color: var(--ink-2); display: flex; gap: 8px 14px; flex-wrap: wrap; align-items: center; }
+  .powerlog .status { display: inline-flex; align-items: center; gap: 6px; }
+  .powerlog .status i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--muted); }
+  .powerlog .status.ok i { background: var(--good); }
+  .src { font-size: 12px; color: var(--ink-2); }
+  .src.low { color: var(--warning); }
+  .device { padding: 12px 14px; margin-bottom: 14px; }
+  .dev-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .dev-head .spacer { flex: 1; }
+  .dev-status { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+  .dev-status i { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); display: inline-block; }
+  .dev-status.on i { background: var(--good); }
+  .dev-status.err i { background: var(--critical); }
+  .dev-status .sub { font-weight: 400; color: var(--ink-2); font-size: 13px; }
+  .dev-auto { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); cursor: pointer; }
+  .dev-progress { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 13px; color: var(--ink-2); }
+  .bar2 { flex: 1; height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; max-width: 420px; }
+  .bar2 div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .dev-msg { font-size: 13px; color: var(--ink-2); margin-top: 6px; }
+  .dev-msg:empty { display: none; }
+  .dev-msg.err { color: var(--critical); }
+  .dev-live { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 10px 18px; margin-top: 12px; }
+  @media (max-width: 1000px) { .dev-live { grid-template-columns: 1fr; } }
+  .dev-nums { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; align-content: start; }
+  .dev-nums .n { background: var(--surface-2); border-radius: 8px; padding: 8px 10px; }
+  .dev-nums .n .l { font-size: 11px; color: var(--muted); }
+  .dev-nums .n .v { font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .dev-nums .n .v.warn { color: var(--warning); }
+  .dev-pins { display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
+  .dev-pin { display: grid; grid-template-columns: 54px 1fr 64px 52px; align-items: center; gap: 8px; }
+  .dev-pin .track { position: relative; height: 12px; background: var(--surface-2); border-radius: 3px; }
+  .dev-pin .fillp { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; }
+  .dev-pin .lim { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--warning); }
+  .dev-pin .a, .dev-pin .s { text-align: right; font-variant-numeric: tabular-nums; }
+  .dev-pin .s { color: var(--muted); }
+  .dev-pins .imb { margin-top: 4px; color: var(--ink-2); }
+  #devChart { grid-column: 1 / -1; width: 100%; height: 120px; display: block; }
+  .dev-settings { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
+  .dev-settings b { color: var(--ink-2); font-weight: 500; }
+  .in-app .browser-only { display: none !important; }
+  .hidden { display: none !important; }
+  footer { color: var(--muted); font-size: 12px; padding: 18px 16px 28px; text-align: center; }
+  @media (max-width: 640px) {
+    main { padding: 10px 16px; }
+    .tile .value { font-size: 18px; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>WireView Log Viewer</h1>
+  <span class="file" id="fileInfo"></span>
+  <span class="spacer"></span>
+  <button id="btnExportRange" class="hidden" title="Cleaned samples in the visible range">Export visible range</button>
+  <button id="btnExportEvents" class="hidden">Export events</button>
+  <button id="btnOpen" class="primary">Open file…</button>
+  <input type="file" id="fileInput" accept=".wvl,.csv" multiple hidden>
+</header>
+
+<main>
+  <section id="device" class="card device hidden">
+    <div class="dev-head">
+      <span class="dev-status" id="devStatus"><i></i><span>Not connected</span></span>
+      <span class="spacer"></span>
+      <select id="devHistory" title="Earlier downloads from the device"></select>
+      <button id="devReveal" class="link">Open folder</button>
+      <label class="dev-auto" title="Update the history from the device every time the app connects"><input type="checkbox" id="devAuto" checked> Update when connected</label>
+      <button id="devFull" class="link" title="Read the whole device memory again instead of only the new part">Full re-read</button>
+      <button id="devConnect">Connect</button>
+      <button id="devDownload" class="primary" disabled>Update history</button>
+    </div>
+    <div class="dev-progress hidden" id="devProgress"><div class="bar2"><div id="devProgressBar"></div></div><span id="devProgressText"></span></div>
+    <div class="dev-msg" id="devMsg"></div>
+    <div class="dev-live hidden" id="devLive">
+      <div class="dev-nums" id="devNums"></div>
+      <div class="dev-pins" id="devPins"></div>
+      <canvas id="devChart"></canvas>
+      <div class="dev-settings" id="devSettings"></div>
+    </div>
+  </section>
+
+  <section id="empty" class="drop">
+    <h2>Drop a WireView history file here</h2>
+    <div class="ink2">or use <b>Open file…</b> above. Everything stays on this computer.</div>
+    <ol>
+      <li>In WireView2, open <b>Logging</b> and click <b>Read</b>, then wait until all cycles are loaded.</li>
+      <li>Click <b>Save file…</b>. That <code>.wvl</code> file holds the whole history.</li>
+      <li>Drop it here. CSV exports (one or more cycles) also work.</li>
+      <li class="browser-only">For real dates, double-click <b>export-power-events.cmd</b> in this folder and drop the <code>power-events-….csv</code> it saves to Downloads here too.</li>
+    </ol>
+    <div id="loadError" class="error"></div>
+  </section>
+
+  <section id="app" class="hidden">
+    <div class="tiles" id="tiles"></div>
+
+    <div class="card sessions">
+      <div class="card-head" style="padding:0">
+        <h3>Power-ons</h3>
+        <span class="muted" style="font-size:12px">Each block is one run of the device, from power-on to power-off. Click one to zoom to it.</span>
+      </div>
+      <div class="strip" id="strip"></div>
+      <div class="powerlog" id="powerLog"></div>
+      <details class="sess-table" id="sessDetails">
+        <summary>Times and dates</summary>
+        <p class="note" style="margin:8px 0">The WireView has no clock, so it only records time since power-on. Dates come from your PC's Windows power history when it's loaded. You can also enter when a power-on <b>ended</b>, or use <b>Ended just before next</b> if the next one began right after (e.g. a firmware update). A time you enter always wins.</p>
+        <div style="overflow:auto"><table id="sessTable"></table></div>
+      </details>
+    </div>
+
+    <div class="card nav">
+      <div class="nav-row">
+        <h3 style="margin:0;font-size:13px;color:var(--ink-2);font-weight:600">Overview</h3>
+        <span class="range" id="rangeLabel"></span>
+        <span class="spacer" style="flex:1"></span>
+        <span class="muted" style="font-size:12px">Drag on a chart to zoom · wheel to zoom · shift+wheel to pan · double-click to reset</span>
+        <div class="quick" id="quickRange" role="group" aria-label="Time range">
+          <button data-h="24">Last 24 h</button>
+          <button data-h="48">Last 48 h</button>
+          <button data-h="168">Last 7 days</button>
+          <button data-h="0" id="btnReset">All</button>
+        </div>
+      </div>
+      <canvas id="navCanvas"></canvas>
+    </div>
+
+    <div class="charts" id="charts"></div>
+
+    <div class="bottom">
+      <div class="card panel">
+        <div class="card-head" style="padding:0"><h3>Events</h3><span class="muted" id="evCount" style="font-size:12px"></span></div>
+        <div class="rules" id="rules">
+          <label><input type="checkbox" data-rule="imbOn" checked> Imbalance &gt;</label>
+          <label><input type="number" data-rule="imbPct" step="1" min="1"> %</label>
+          <label>when a pin &gt; <input type="number" data-rule="imbMinA" step="0.5" min="0"> A</label>
+          <label>measured as <select data-rule="imbBase"><option value="max">(max − min) / max</option><option value="mean">(max − min) / average</option></select></label>
+          <label><input type="checkbox" data-rule="wireOn" checked> Pin &gt; <input type="number" data-rule="wireA" step="0.1" min="0"> A</label>
+          <label><input type="checkbox" data-rule="powOn" checked> Power &gt; <input type="number" data-rule="powW" step="10" min="0"> W</label>
+          <label><input type="checkbox" data-rule="tempOn" checked> Temp &gt; <input type="number" data-rule="tempC" step="1" min="0"> °C</label>
+          <button class="link" id="btnRulesReset">Reset to device defaults</button>
+        </div>
+        <div class="events-wrap"><table id="evTable"></table></div>
+        <div class="detail hidden" id="evDetail"></div>
+        <div class="note" id="evNote"></div>
+      </div>
+      <div class="card panel">
+        <div class="card-head" style="padding:0"><h3>Pin health under load</h3></div>
+        <div class="rules"><label>Count samples above <input type="number" id="loadMin" value="30" step="5" min="1"> A total</label></div>
+        <div id="pinHealth"></div>
+        <div class="note">A perfectly balanced connector puts 16.7% of the current on each pin. The share uses all loaded samples in the visible range.</div>
+      </div>
+    </div>
+  </section>
+</main>
+<div class="tooltip" id="tooltip"></div>
+<footer>WireView Log Viewer · reads WireView Pro II <code>.wvl</code> history and CSV exports locally · not affiliated with Thermal Grizzly</footer>
+
+<script src="js/decoder.js"></script>
+<script src="js/align.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
