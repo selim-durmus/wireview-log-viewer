@@ -140,6 +140,8 @@ public sealed class MainForm : Form
             case "device.disconnect":
                 _device.Disconnect();
                 return true;
+            case "device.clearFaults":
+                return _device.ClearFaults();
             case "device.download":
                 return _device.DownloadHistory(args?["full"]?.GetValue<bool>() ?? false);
             case "history.list":

@@ -1308,6 +1308,7 @@
     $('#devConnect').textContent = on ? 'Disconnect' : 'Connect';
     $('#devDownload').disabled = !on || DEV.busy;
     $('#devLive').classList.toggle('hidden', !on);
+    $('#devClear').disabled = !on || !DEV.faults || !(DEV.faults.active || DEV.faults.logged);
     renderDevSettings();
   }
 
@@ -1358,8 +1359,9 @@
     const c = DEV.info && DEV.info.config;
     const wire = c ? c.wireLimitA : S.rules.wireA, imbLim = c ? c.imbalanceLimitPct : S.rules.imbPct, imbMin = c ? c.imbalanceMinA : S.rules.imbMinA;
     const imb = mx > 0 ? (mx - mn) / mx * 100 : 0;
-    const faults = ['chip temp', 'sensor temp', 'over-current', 'pin over-current', 'over-power', 'imbalance'];
-    const active = faults.filter((f, k) => r.faultStatus >> k & 1), logged = faults.filter((f, k) => r.faultLog >> k & 1);
+    const active = faultNames(r.faultStatus), logged = faultNames(r.faultLog);
+    DEV.faults = { active: r.faultStatus & 0x3F, logged: r.faultLog & 0x3F };
+    $('#devClear').disabled = !(DEV.faults.active || DEV.faults.logged) || DEV.clearing;
     const nums = [
       ['Power', P.toFixed(0) + ' W'], ['Current', tot.toFixed(1) + ' A'], ['Voltage', r.avgV.toFixed(2) + ' V'],
       ['Temp in / out', r.tempIn.toFixed(0) + ' / ' + r.tempOut.toFixed(0) + ' °C'], ['Fan', r.fanPct + ' %'],
@@ -1397,6 +1399,21 @@
     DEV.live.push({ t: Date.now(), I });
     if (DEV.live.length > 300) DEV.live.shift();
     drawLiveChart(wire);
+  }
+
+  const FAULT_NAMES = ['chip temperature', 'sensor temperature', 'over-current', 'pin over-current', 'over-power', 'current imbalance'];
+  function faultNames(mask) { return FAULT_NAMES.filter((f, k) => mask >> k & 1); }
+
+  async function devClearFaults() {
+    DEV.clearing = true;
+    $('#devClear').disabled = true;
+    try {
+      const r = await call('device.clearFaults');
+      const was = faultNames(r.before.active | r.before.logged), still = faultNames(r.after.active);
+      if (still.length) devMsg(`Still active: ${still.join(', ')}. The condition is still there, so the device raised it again.`, true);
+      else devMsg(was.length ? `Cleared: ${was.join(', ')}.` : 'No warnings to clear.');
+    } catch (err) { devMsg('Could not clear the warnings: ' + (err.message || err), true); }
+    DEV.clearing = false;
   }
 
   function drawLiveChart(wire) {
@@ -1502,6 +1519,7 @@
     });
     $('#devDownload').addEventListener('click', () => devDownload(false));
     $('#devFull').addEventListener('click', () => devDownload(true));
+    $('#devClear').addEventListener('click', devClearFaults);
     try { $('#devAuto').checked = localStorage.getItem('wvlv:autoUpdate') !== '0'; } catch (e) { /* default on */ }
     $('#devAuto').addEventListener('change', e => { try { localStorage.setItem('wvlv:autoUpdate', e.target.checked ? '1' : '0'); } catch (x) { /* ignore */ } });
     $('#devReveal').addEventListener('click', () => call('history.reveal', {}));

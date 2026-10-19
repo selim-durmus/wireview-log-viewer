@@ -42,6 +42,29 @@ public sealed class DeviceService : IDisposable
         finally { Interlocked.Exchange(ref _liveBusy, 0); }
     }
 
+    // Clears the fault warnings (active and logged), then asks the display to leave its fault
+    // screen, as WireView2 does. A fault whose cause is still present comes straight back.
+    public object ClearFaults()
+    {
+        var dev = _dev ?? throw new InvalidOperationException("Connect the WireView first.");
+        var before = dev.ReadSensors();
+        dev.ClearFaults(WireViewDevice.KnownFaults, WireViewDevice.KnownFaults);
+        Thread.Sleep(150);
+        dev.Screen(0xEF);
+        Thread.Sleep(150);
+        var after = dev.ReadSensors();
+        if ((after.FaultStatus & WireViewDevice.KnownFaults) == 0 && (after.FaultLog & WireViewDevice.KnownFaults) != 0)
+        {
+            dev.ClearFaultsDirect(WireViewDevice.KnownFaults, WireViewDevice.KnownFaults);
+            Thread.Sleep(150);
+            dev.Screen(0xEF);
+            Thread.Sleep(150);
+            after = dev.ReadSensors();
+        }
+        _emit("device.live", after);
+        return new { before = new { active = before.FaultStatus, logged = before.FaultLog }, after = new { active = after.FaultStatus, logged = after.FaultLog } };
+    }
+
     public sealed record DownloadResult(string FileName, string Url, string Path, long NewestTick, int UsedSectors, int IntervalS,
         double ReadEpoch, bool Incremental, int PagesRead, double Seconds);
 

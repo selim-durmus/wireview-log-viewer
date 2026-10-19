@@ -144,6 +144,24 @@ public sealed class WireViewDevice : IDisposable
 
     public void Screen(byte sub) { lock (_io) { _sp.Write(new byte[] { 0x0C, sub }, 0, 2); } }
 
+    // Command 0E: the device ANDs its active and logged fault registers with these masks,
+    // so a 0 bit clears that fault. Only the six known fault bits are ever cleared.
+    public const int KnownFaults = 0x3F;
+    public void ClearFaults(int activeToClear, int loggedToClear)
+    {
+        int keepActive = ~(activeToClear & KnownFaults) & 0xFFFF, keepLogged = ~(loggedToClear & KnownFaults) & 0xFFFF;
+        var cmd = new byte[] { 0x0E, (byte)keepActive, (byte)(keepActive >> 8), (byte)keepLogged, (byte)(keepLogged >> 8) };
+        lock (_io) { _sp.Write(cmd, 0, cmd.Length); }
+    }
+
+    // Same command with the masks sent as given. Used only as a fallback if the device kept
+    // logged faults after ClearFaults; with AND semantics this form changes no known fault bit.
+    public void ClearFaultsDirect(int active, int logged)
+    {
+        var cmd = new byte[] { 0x0E, (byte)active, (byte)(active >> 8), (byte)logged, (byte)(logged >> 8) };
+        lock (_io) { _sp.Write(cmd, 0, cmd.Length); }
+    }
+
     byte[] Command(byte[] cmd, int responseLength, int timeoutMs = 1000)
     {
         lock (_io)

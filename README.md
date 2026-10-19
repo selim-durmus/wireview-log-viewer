@@ -22,6 +22,7 @@ It comes in two forms:
 - Export the visible range or the event list as CSV
 - Windows app only:
   - Live readings and a 5-minute per-pin chart
+  - One-click *Clear warnings*
   - History updates straight from the device in under a second
   - Clock sync
 
@@ -42,7 +43,10 @@ Close WireView2 first; only one app can use the device at a time. Then run `Wire
   - Downloads are kept in `%LOCALAPPDATA%\WireViewLogViewer\history\`: the 10 newest plus the first one of each month.
 - **Clock sync:** after a download, the app waits for the device's next sample (up to one logging interval). That ties the current power-on to the PC clock within about ±2 s.
 - **Dates for older power-ons** come from the Windows System event log, read directly. The events are archived in `%LOCALAPPDATA%\WireViewLogViewer\power-events.json`, so old dates survive after Windows rolls its log over.
-- **Read-only:** the app never changes device settings and never updates firmware. It only pauses and resumes the display updates while reading, as WireView2 does.
+- **Clear warnings** clears the device's fault warnings, active and logged (e.g. a current-imbalance alarm), and returns the display to its normal screen, like WireView2's clear button.
+  - It's enabled only while a warning is shown.
+  - A fault whose cause is still present comes straight back, and the app says so.
+- **Almost read-only:** the app never changes device settings and never updates firmware. The only things it sends besides reads are *Clear warnings* and the display pause/resume during a download, both as WireView2 does.
 
 The exe is not code-signed, so Windows SmartScreen may warn you the first time.
 
